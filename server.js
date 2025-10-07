@@ -5,24 +5,32 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get("/proxy/check-customer", async (req, res) => {
+  const email = req.query.email;
+
+  if (!email) {
+    return res.status(400).json({ error: "Email parameter is required" });
+  }
+
   try {
-    const email = String(req.query.email || "").trim().toLowerCase();
-    if (!email) return res.status(400).json({ error: "Missing email" });
+    const response = await fetch(
+      `https://${process.env.SHOPIFY_SHOP_DOMAIN}/admin/api/2024-10/customers/search.json?query=email:${email}`,
+      {
+        headers: {
+          "X-Shopify-Access-Token": process.env.SHOPIFY_ADMIN_TOKEN,
+          "Content-Type": "application/json",
+        },
+      }
+    );
 
-    const shop = process.env.SHOPIFY_SHOP_DOMAIN;
-    const token = process.env.SHOPIFY_ADMIN_TOKEN;
+    const data = await response.json();
+    const exists = data.customers && data.customers.length > 0;
 
-    const url = `https://${shop}/admin/api/2024-10/customers/search.json?query=${encodeURIComponent(`email:"${email}"`)}`;
-    const r = await fetch(url, {
-      headers: { "X-Shopify-Access-Token": token },
-    });
-    const { customers = [] } = await r.json();
-
-    res.json({ exists: customers.length > 0 });
-  } catch (e) {
-    console.error(e);
+    res.json({ exists });
+  } catch (err) {
+    console.error(err);
     res.status(500).json({ error: "Server error" });
   }
 });
+
 
 app.listen(PORT, () => console.log("Server running on port " + PORT));
